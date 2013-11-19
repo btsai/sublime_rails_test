@@ -1,4 +1,5 @@
 [
   { "keys": ["super+."], "command": "toggle_rails_test_file" },
-  { "keys": ["super+shift+t"], "command": "rails_test" },
+  { "keys": ["super+k", "super+t", "super+a"], "command": "rails_test" },
+  { "keys": ["super+k", "super+t", "super+t"], "command": "rails_test_with_name" },
 ]

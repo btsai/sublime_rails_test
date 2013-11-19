@@ -56,8 +56,8 @@ class FindRailsFiles():
     return results
 
 
-class RailsTestCommand(FindRailsFiles, sublime_plugin.WindowCommand):
-  def run(self):
+class RailsTestRunner:
+  def run_tests(self, test_name = None):
     if not self.set_project_folder():
       return
 
@@ -92,10 +92,8 @@ class RailsTestCommand(FindRailsFiles, sublime_plugin.WindowCommand):
       re.sub(self.project_folder + '/', '', test_filepath)
     ]
 
-    view = self.window.active_view()
-    selected_text = view.substr(view.sel()[0])
-    if selected_text != "":
-      apple_commands.append(selected_text)
+    if test_name:
+      apple_commands.append(test_name)
 
     subprocess.Popen(apple_commands)
 
@@ -132,6 +130,41 @@ class RailsTestCommand(FindRailsFiles, sublime_plugin.WindowCommand):
     return {
       'rvm_initialization': '[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"; rvm 1.9.3; ruby -v',
     }
+
+
+class RailsTestWithNameCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.WindowCommand):
+  def run(self):
+    # get test name just before cursor
+    test_name = self.test_name_from_text(True)
+    if not test_name:
+      # otherwise cursor is above first test, so get the first test name after
+      test_name = self.test_name_from_text(False)
+    self.run_tests(test_name)
+
+
+  def test_name_from_text(self, reverse_lookup):
+    test_name = None
+    view = self.window.active_view()
+    cursor_location = view.sel()[0].a
+    if reverse_lookup:
+      region = sublime.Region(0, cursor_location)
+    else:
+      region = sublime.Region(cursor_location, view.size())
+    text_up_to_cursor = view.substr(region)
+    lines = text_up_to_cursor.split("\n")
+    if reverse_lookup:
+      lines.reverse()
+    for line in lines:
+      test_name_match = re.match(r"^.*?def\s+(test_.+?)($|\s)", line)
+      if test_name_match:
+        test_name = test_name_match.group(1)
+        break
+    return test_name
+
+
+class RailsTestCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.WindowCommand):
+  def run(self):
+    self.run_tests()
 
 
 class ToggleRailsTestFileCommand(FindRailsFiles, sublime_plugin.WindowCommand):
