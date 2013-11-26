@@ -21,17 +21,12 @@ class FindRailsFiles():
       self.window.open_file(filepath)
 
   def get_code_filepath(self, filename):
-    filepath = self.recursive_find('app/models', filename)
-    if filepath: return filepath
-    filepath = self.recursive_find('app/services', filename)
-    if filepath: return filepath
-    filepath = self.recursive_find('app/controllers', filename)
+    filepath = self.recursive_find('app', filename)
     return filepath
 
+  # used for both toggle and launch test
   def get_test_filepath(self, filename):
-    filepath = self.recursive_find('test/unit', filename)
-    if filepath: return filepath
-    filepath = self.recursive_find('test/functional', filename)
+    filepath = self.recursive_find('test', filename)
     return filepath
 
   def recursive_find(self, relative_folder, filename):
