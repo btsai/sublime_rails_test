@@ -20,28 +20,19 @@ class FindRailsFiles():
     if filepath:
       self.window.open_file(filepath)
 
-  def get_code_filepath(self, code_file):
-    filepath = self.model_path(code_file) or self.controller_path(code_file)
+  def get_code_filepath(self, filename):
+    filepath = self.recursive_find('app/models', filename)
+    if filepath: return filepath
+    filepath = self.recursive_find('app/services', filename)
+    if filepath: return filepath
+    filepath = self.recursive_find('app/controllers', filename)
     return filepath
 
-  def get_test_filepath(self, test_file):
-    filepath = self.unit_test_path(test_file) or self.functional_test_path(test_file)
+  def get_test_filepath(self, filename):
+    filepath = self.recursive_find('test/unit', filename)
+    if filepath: return filepath
+    filepath = self.recursive_find('test/functional', filename)
     return filepath
-
-  def model_path(self, filename):
-    models = self.recursive_find('app/models', filename)
-    if models:
-      return models
-    return self.recursive_find('app/services', filename)
-
-  def controller_path(self, filename):
-    return self.recursive_find('app/controllers', filename)
-
-  def unit_test_path(self, filename):
-    return self.recursive_find('test/unit', filename)
-
-  def functional_test_path(self, filename):
-    return self.recursive_find('test/functional', filename)
 
   def recursive_find(self, relative_folder, filename):
     base_folder = os.path.join(self.project_folder, relative_folder)
