@@ -5,44 +5,39 @@ class FindRailsFiles():
     self.project_folder = None if len(self.window.folders()) == 0 else self.window.folders()[0]
     return self.project_folder
 
-  def check_if_test_file(self, filename):
-    testfile_check = re.match(r"^(.+?)_test\.rb", filename)
-    code_file = testfile_check.group(1) + '.rb' if testfile_check else None
-    return testfile_check, code_file
+  def partner_filepath(self, filepath):
+    is_test_file = re.match(r"^(.+?)_test\.rb", filepath)
 
-  def open_code_file(self, code_file):
-    filepath = self.get_code_filepath(code_file)
-    if filepath:
-      self.window.open_file(filepath)
+    if is_test_file:  # is test file, so get code file
+      filepath = is_test_file.group(1) + '.rb'
+      filepath = self.recursive_find('app', filepath)
+    else:             # is code file, add test suffix and get test file
+      filepath = filepath.replace('.rb', '') + '_test.rb'
+      filepath = self.recursive_find('test', filepath)
+    return is_test_file, filepath
 
-  def open_test_file(self, test_file):
-    filepath = self.get_test_filepath(test_file)
-    if filepath:
-      self.window.open_file(filepath)
+  # checking to see if we're in a subfolder 2-deep or more.
+  def subfolder_paths(self, filepath):
+    relative_path = os.path.split(filepath)[0].replace(self.project_folder, '')
+    paths = relative_path.split('/')[3:]
+    return None if len(paths) == 0 else '/' + '/'.join(paths)
 
-  def get_code_filepath(self, filename):
-    filepath = self.recursive_find('app', filename)
-    return filepath
-
-  # used for both toggle and launch test
-  def get_test_filepath(self, filename):
-    filepath = self.recursive_find('test', filename)
-    return filepath
-
-  def recursive_find(self, relative_folder, filename):
+  def recursive_find(self, relative_folder, filepath):
     base_folder = os.path.join(self.project_folder, relative_folder)
-    finds = self.recursive_glob(base_folder, filename)
-    if len(finds) == 0:
-      return None
-    else:
-      return finds[0]
+    filename = os.path.basename(filepath)
+    subfolders = self.subfolder_paths(filepath)
+    finds = self.recursive_glob(base_folder, filename,subfolders)
+    return None if len(finds) == 0 else finds[0]
 
-  # from http://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
-  def recursive_glob(self, base_folder, pattern):
+  def recursive_glob(self, base_folder, pattern, required_dir = None):
     results = []
     for base, dirs, files in os.walk(base_folder):
-      goodfiles = fnmatch.filter(files, pattern)
-      results.extend(os.path.join(base, f) for f in goodfiles)
+      if (required_dir is None) or (required_dir in base):
+        goodfiles = fnmatch.filter(files, pattern)
+        results.extend(os.path.join(base, f) for f in goodfiles)
+      if len(dirs) > 0:
+        for dir in dirs:
+          results = results + self.recursive_glob(os.path.join(base, dir), pattern, required_dir)
     return results
 
 
@@ -52,18 +47,14 @@ class RailsTestRunner:
       return
 
     filepath = self.window.active_view().file_name()
-    filename = os.path.basename(filepath)
-    if os.path.splitext(filename)[1] != '.rb':
-      # ignore non-rb files
+    if os.path.splitext(filepath)[1] != '.rb':
       return
-    is_test_file, code_file = self.check_if_test_file(filename)
+
+    is_test_file, test_filepath = self.partner_filepath(filepath)
     if is_test_file:
       test_filepath = filepath
     else:
-      test_file = filename.replace('.rb', '') + '_test.rb'
-      test_filepath = self.get_test_filepath(test_file)
-      if not test_filepath:
-        # couldn't find a matching test file
+      if not test_filepath: # couldn't find a matching test file
         return
 
     settings = sublime.load_settings('RailsTest.sublime-settings')
@@ -163,12 +154,5 @@ class ToggleRailsTestFileCommand(FindRailsFiles, sublime_plugin.WindowCommand):
       return
 
     filepath = self.window.active_view().file_name()
-    filename = os.path.basename(filepath)
-
-    is_test_file, code_file = self.check_if_test_file(filename)
-    if is_test_file:
-      self.open_code_file(code_file)
-    else:
-      test_file = filename.replace('.rb', '') + '_test.rb'
-      self.open_test_file(test_file)
-
+    is_test_file, filepath = self.partner_filepath(filepath)
+    self.window.open_file(filepath)
