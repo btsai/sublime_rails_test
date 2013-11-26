@@ -29,7 +29,10 @@ class FindRailsFiles():
     return filepath
 
   def model_path(self, filename):
-    return self.recursive_find('app/models', filename)
+    models = self.recursive_find('app/models', filename)
+    if models:
+      return models
+    return self.recursive_find('app/services', filename)
 
   def controller_path(self, filename):
     return self.recursive_find('app/controllers', filename)
@@ -48,6 +51,7 @@ class FindRailsFiles():
     else:
       return finds[0]
 
+  # from http://stackoverflow.com/questions/2186525/use-a-glob-to-find-files-recursively-in-python
   def recursive_glob(self, base_folder, pattern):
     results = []
     for base, dirs, files in os.walk(base_folder):
@@ -176,9 +180,9 @@ class ToggleRailsTestFileCommand(FindRailsFiles, sublime_plugin.WindowCommand):
     filename = os.path.basename(filepath)
 
     is_test_file, code_file = self.check_if_test_file(filename)
-    if is_test_file: # is test
+    if is_test_file:
       self.open_code_file(code_file)
-    else:     # is code
+    else:
       test_file = filename.replace('.rb', '') + '_test.rb'
       self.open_test_file(test_file)
 
