@@ -57,9 +57,11 @@ class RailsTestRunner:
       if not test_filepath: # couldn't find a matching test file
         return
 
+    self.window.open_file(test_filepath)
+
     settings = sublime.load_settings('RailsTest.sublime-settings')
     osascript = settings.get("osascript") or "/usr/bin/osascript"
-    applescript_path = "{packages_dir}/RailsTest/rails_test.applescript".format(
+    applescript_path = "{packages_dir}/RailsTest/rails_test.{terminal_name}.applescript".format(
       packages_dir = sublime.packages_path(),
       terminal_name = settings.get("terminal")
     )
