@@ -145,6 +145,14 @@ class RailsTestWithNameCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.W
     return test_name
 
 
+# utility commands for this plugin
+class OpenProjectFileCommand(sublime_plugin.WindowCommand):
+    def run(self):
+      project_file = self.window.project_file_name()
+      if project_file:
+        self.window.open_file(project_file)
+
+
 class RailsTestCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.WindowCommand):
   def run(self):
     self.run_tests()
