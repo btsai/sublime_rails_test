@@ -74,7 +74,8 @@ class RailsTestRunner:
     if not self.set_project_folder():
       return
 
-    filepath = self.window.active_view().file_name()
+    self.view = self.window.active_view()
+    filepath = self.view.file_name()
     if os.path.splitext(filepath)[1] != '.rb':
       return
 
