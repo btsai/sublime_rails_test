@@ -1,4 +1,4 @@
-import sublime, sublime_plugin, os, re, fnmatch, subprocess
+import sublime, sublime_plugin, os, re, fnmatch, subprocess, time
 
 class FindRailsFiles():
   def set_project_folder(self):
@@ -11,10 +11,14 @@ class FindRailsFiles():
     if is_test_file:  # is test file, so get code file
       filepath = is_test_file.group(1) + '.rb'
       filepath = self.recursive_find('app', filepath)
+      method_name = self.method_name_from_text(True, test_method=True)
+
     else:             # is code file, add test suffix and get test file
       filepath = filepath.replace('.rb', '') + '_test.rb'
       filepath = self.recursive_find('test', filepath)
-    return is_test_file, filepath
+      method_name = self.method_name_from_text(True, test_method=False)
+
+    return is_test_file, filepath, method_name
 
   # checking to see if we're in a subfolder 2-deep or more.
   def subfolder_paths(self, filepath):
@@ -40,6 +44,30 @@ class FindRailsFiles():
           results = results + self.recursive_glob(os.path.join(base, dir), pattern, required_dir)
     return results
 
+  # TODO: make this pass in a prefix instead of test_method toggle
+  def method_name_from_text(self, reverse_lookup = True, test_method = False):
+    method_name = None
+    view = self.view
+    cursor_location = view.sel()[0].a
+    if reverse_lookup:
+      region = sublime.Region(0, cursor_location)
+    else:
+      region = sublime.Region(cursor_location, view.size())
+    text_up_to_cursor = view.substr(region)
+    lines = text_up_to_cursor.split("\n")
+    if reverse_lookup:
+      lines.reverse()
+    for line in lines:
+      if test_method:
+        method_name_match = re.match(r"^.*?def\s+(test_.+?)(\(|$|\s)", line)
+      else:
+        method_name_match = re.match(r"^.*?def\s+(.+?)(\(|$|\s)", line)
+
+      if method_name_match:
+        method_name = method_name_match.group(1)
+        break
+    return method_name
+
 
 class RailsTestRunner:
   def run_tests(self, test_name = None):
@@ -50,7 +78,7 @@ class RailsTestRunner:
     if os.path.splitext(filepath)[1] != '.rb':
       return
 
-    is_test_file, test_filepath = self.partner_filepath(filepath)
+    is_test_file, test_filepath, method_name = self.partner_filepath(filepath)
     if is_test_file:
       test_filepath = filepath
     else:
@@ -118,31 +146,12 @@ class RailsTestRunner:
 class RailsTestWithNameCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.WindowCommand):
   def run(self):
     # get test name just before cursor
-    test_name = self.test_name_from_text(True)
+    self.view = self.window.active_view()
+    test_name = self.method_name_from_text(True, test_method=True)
     if not test_name:
       # otherwise cursor is above first test, so get the first test name after
-      test_name = self.test_name_from_text(False)
+      test_name = self.method_name_from_text(False, test_method=True)
     self.run_tests(test_name)
-
-
-  def test_name_from_text(self, reverse_lookup):
-    test_name = None
-    view = self.window.active_view()
-    cursor_location = view.sel()[0].a
-    if reverse_lookup:
-      region = sublime.Region(0, cursor_location)
-    else:
-      region = sublime.Region(cursor_location, view.size())
-    text_up_to_cursor = view.substr(region)
-    lines = text_up_to_cursor.split("\n")
-    if reverse_lookup:
-      lines.reverse()
-    for line in lines:
-      test_name_match = re.match(r"^.*?def\s+(test_.+?)($|\s)", line)
-      if test_name_match:
-        test_name = test_name_match.group(1)
-        break
-    return test_name
 
 
 # utility commands for this plugin
@@ -158,11 +167,64 @@ class RailsTestCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.WindowCom
     self.run_tests()
 
 
+class LoadListener(sublime_plugin.EventListener):
+  def on_load_async(self, view):
+    action = ToggleRailsTestFileCommand.current_open_action
+    if not action:
+      return
+    if view == action.view:
+      CursorMover().move_cursor_to_method(action)
+      ToggleRailsTestFileCommand.current_open_action = None
+
+class OnLoadViewAction():
+  def __init__(self, view, method_name, is_test_file):
+    self.view, self.method_name, self.is_test_file = view, method_name, is_test_file
+
+class CursorMover(FindRailsFiles):
+  def move_cursor_to_method(self, action):
+    view, method_name, is_test_file = action.view, action.method_name, action.is_test_file
+    self.view = view
+
+    # find the matching method location in partner file
+    if is_test_file:
+      method_name = method_name.replace('test_', '')
+    else:
+      method_name = 'test_' + method_name
+    line = view.find('def\s+%s' % method_name, 0)
+    if line.a == -1:  # couldn't find matching method
+      return
+
+    print(method_name, line.a)
+    line = view.line(line) # full line
+
+    # if cursor is not in method, then move cursor to that method
+    current_method_name = self.method_name_from_text()
+    if current_method_name != method_name:
+      view.sel().clear()
+      view.sel().add(sublime.Region(line.b + 1))
+
+    # scroll to method
+    view.show(line)
+
 class ToggleRailsTestFileCommand(FindRailsFiles, sublime_plugin.WindowCommand):
+  current_open_action = None
+
   def run(self):
     if not self.set_project_folder():
       return
 
-    filepath = self.window.active_view().file_name()
-    is_test_file, filepath = self.partner_filepath(filepath)
-    self.window.open_file(filepath)
+    self.view = self.window.active_view()
+    filepath = self.view.file_name()
+    is_test_file, filepath, method_name = self.partner_filepath(filepath)
+    if filepath is None:
+      return
+
+    was_open = self.window.find_open_file(filepath)
+    view = self.window.open_file(filepath)
+    if method_name is not None:
+      # if file was not open, try to move to the selected method
+      action = OnLoadViewAction(view, method_name, is_test_file)
+      if not was_open:
+        ToggleRailsTestFileCommand.current_open_action = action
+      else:
+        CursorMover().move_cursor_to_method(action)
