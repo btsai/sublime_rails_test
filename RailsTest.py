@@ -59,9 +59,9 @@ class FindRailsFiles():
       lines.reverse()
     for line in lines:
       if test_method:
-        method_name_match = re.match(r"^.*?def\s+(test_.+?)(\(|$|\s)", line)
+        method_name_match = re.match(r"^.*?def\s+(test_.+?)(\?\(|$|\s)", line)
       else:
-        method_name_match = re.match(r"^.*?def\s+(.+?)(\(|$|\s)", line)
+        method_name_match = re.match(r"^.*?def\s+(.+?)(\?\(|$|\s)", line)
 
       if method_name_match:
         method_name = method_name_match.group(1)

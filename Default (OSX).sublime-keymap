@@ -3,4 +3,8 @@
   { "keys": ["super+k", "super+t", "super+a"], "command": "rails_test" },
   { "keys": ["super+k", "super+t", "super+t"], "command": "rails_test_with_name" },
   { "keys": ["super+,", "super+p"], "command": "open_project_file" },
+
+  // additional test launch keys
+  { "keys": ["super+shift+\\"], "command": "rails_test" },
+  { "keys": ["super+\\"], "command": "rails_test_with_name" },
 ]
