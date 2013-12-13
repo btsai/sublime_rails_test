@@ -56,11 +56,15 @@ class FindRailsFiles():
          app/models|
          app/concerns|
          app/controllers|
+         app/helpers|
          app/services|
          lib)(.*?)$
     """, re.VERBOSE)
     match = regex.match(relative_path)
-    return [match.group(1), match.group(3)]
+    if match:
+      return [match.group(1), match.group(3)]
+    else:
+      return ['', '']
 
   # where to look for matching code or test files
   @property
