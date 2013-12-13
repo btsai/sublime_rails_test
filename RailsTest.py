@@ -1,4 +1,4 @@
-import sublime, sublime_plugin, os, re, fnmatch, subprocess, time
+import sublime, sublime_plugin, os, re, fnmatch, subprocess, time, glob
 
 class FindRailsFiles():
   def set_project_folder(self):
@@ -6,43 +6,88 @@ class FindRailsFiles():
     return self.project_folder
 
   def partner_filepath(self, filepath):
-    is_test_file = re.match(r"^(.+?)_test\.rb", filepath)
+    filedir, filename = os.path.split(filepath)
+    is_test_file = re.match(r"^(.+?)_test\.rb", filename)
 
     if is_test_file:  # is test file, so get code file
-      filepath = is_test_file.group(1) + '.rb'
-      filepath = self.recursive_find('app', filepath)
+      filename = is_test_file.group(1) + '.rb'
+      filepath = self.recursive_find(filedir, filename, ['app', 'lib'])
       method_name = self.method_name_from_text(True, test_method=True)
 
     else:             # is code file, add test suffix and get test file
-      filepath = filepath.replace('.rb', '') + '_test.rb'
-      filepath = self.recursive_find('test', filepath)
+      filename = filename.replace('.rb', '') + '_test.rb'
+      filepath = self.recursive_find(filedir, filename, ['test'])
       method_name = self.method_name_from_text(True, test_method=False)
 
     return is_test_file, filepath, method_name
 
-  # checking to see if we're in a subfolder 2-deep or more.
-  def subfolder_paths(self, filepath):
-    relative_path = os.path.split(filepath)[0].replace(self.project_folder, '')
-    paths = relative_path.split('/')[3:]
-    return None if len(paths) == 0 else '/' + '/'.join(paths)
+  def recursive_find(self, filedir, filename, target_folders):
+    finds = []
+    for target_folder in target_folders:
+      # base_folder = os.path.join(self.project_folder, target_folder)
+      # base_folder = self.project_folder
 
-  def recursive_find(self, relative_folder, filepath):
-    base_folder = os.path.join(self.project_folder, relative_folder)
-    filename = os.path.basename(filepath)
-    subfolders = self.subfolder_paths(filepath)
-    finds = self.recursive_glob(base_folder, filename,subfolders)
+      prefix, namespace = self.subfolder_paths(filedir)
+      if prefix == '':
+        base_folder = os.path.join(self.project_folder, target_folder)
+      else:
+        # dang python is too stupid to realize that prefix is not an absolute path, gotta make adjustments
+        prefix = re.match(r"(\/)*(.+?)$", prefix).group(2)
+        base_folder = os.path.join(self.project_folder, prefix, target_folder)
+
+      finds += self.rglob(base_folder, filename)
+
+    # now try to find the namespaced version, if required
+    if namespace != '':
+      namespace_matches =  [path for path in finds if namespace in path]
+      if len(namespace_matches) > 0:
+        finds = namespace_matches
+
     return None if len(finds) == 0 else finds[0]
 
-  def recursive_glob(self, base_folder, pattern, required_dir = None):
-    results = []
-    for base, dirs, files in os.walk(base_folder):
-      if (required_dir is None) or (required_dir in base):
-        goodfiles = fnmatch.filter(files, pattern)
-        results.extend(os.path.join(base, f) for f in goodfiles)
-      if len(dirs) > 0:
-        for dir in dirs:
-          results = results + self.recursive_glob(os.path.join(base, dir), pattern, required_dir)
-    return results
+  # checking to see if we're in a subfolder 2-deep or more.
+  def subfolder_paths(self, filedir):
+    relative_path = filedir.replace(self.project_folder, '')
+    regex = re.compile(r"""
+      (.*?)
+      \/(test/unit|
+         test/functional|
+         test/integration|
+         app/models|
+         app/concerns|
+         app/controllers|
+         app/services|
+         lib)(.*?)$
+    """, re.VERBOSE)
+    match = regex.match(relative_path)
+    return [match.group(1), match.group(3)]
+
+  # where to look for matching code or test files
+  @property
+  def valid_dirs(self):
+    return ['app', 'test', 'lib', 'vendor']
+
+  # will ignore these if found inside above valid_dirs
+  def is_invalid_dir(self, dirname):
+    return re.match(r".*(tmp|script|bundle|\.git|db|config)", dirname)
+
+  # from http://cpiekarski.com/2011/09/23/python-recursive-glob/
+  def rglob(self, base, pattern):
+    flist = []
+    # first get files in the dir
+    flist.extend(glob.glob(os.path.join(base, pattern)))
+
+    # now recursively search in this dir's dirs
+    # dirs = [path for path in glob.iglob(os.path.join( base, '*')) if os.path.isdir(path) and not self.is_invalid_dir(path) ]
+    dirs = []
+    for dir in [x[1] for x in os.walk(base)][0]:
+      if not self.is_invalid_dir(dir):
+        dirs.append(dir)
+
+    if len(dirs):
+      for dir in dirs:
+        flist.extend(self.rglob(os.path.join(base, dir), pattern))
+    return flist
 
   # TODO: make this pass in a prefix instead of test_method toggle
   def method_name_from_text(self, reverse_lookup = True, test_method = False):
@@ -195,7 +240,6 @@ class CursorMover(FindRailsFiles):
     if line.a == -1:  # couldn't find matching method
       return
 
-    print(method_name, line.a)
     line = view.line(line) # full line
 
     # if cursor is not in method, then move cursor to that method
