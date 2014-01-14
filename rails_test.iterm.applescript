@@ -40,6 +40,7 @@ on run argv
 				if test_name is not null then
 					set test_command to test_command & " -n " & test_name
 				end if
+				set test_command to test_command & " -o"
 			end if
 
 			write text test_command
