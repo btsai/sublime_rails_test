@@ -7,13 +7,14 @@ on run argv
 		set project_folder to "/Users/btsai/git/workcloud/workcloud"
 		set test_file to "test/unit/company_test.rb"
 		set test_name to "test_display_name"
-		set subtest_group to "roles"
+		set subtest_group to null
 	else
 		--SHOULD HAVE 3 + 2 OPTIONAL ARGUMENTS PASSED OVER BY SUBLIME SCRIPT
 		set ruby_initialization to item 1 of argv
 		set project_folder to item 2 of argv
 		set test_file to item 3 of argv
 		set test_name to null
+		set subtest_group to null
 		if (count of argv) is 4 then
 			set test_name to item 4 of argv
 		else if (count of argv) is 5 then
