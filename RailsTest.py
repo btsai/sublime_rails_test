@@ -175,7 +175,7 @@ class RailsTestRunner:
     if test_name:
       apple_commands.append(test_name)
     # add toggle to let applescript at the ONLY=type prefix
-    if is_subtest_file:
+    if is_subtest_file and not test_name:
       apple_commands.append('none')
       apple_commands.append(is_subtest_file.group(1))
 
