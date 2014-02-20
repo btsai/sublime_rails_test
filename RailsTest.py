@@ -8,16 +8,24 @@ class FindRailsFiles():
   def partner_filepath(self, filepath):
     filedir, filename = os.path.split(filepath)
     is_test_file = re.match(r"^(.+?)_test\.rb", filename)
+    is_subtest_file = re.match(r"^(.+?)_tests\.rb", filename)
 
-    if is_test_file:  # is test file, so get code file
-      filename = is_test_file.group(1) + '.rb'
+    # is test file (ends with 'test'), so get code file
+    # subtest file - ends with 'tests' and belongs to the parent folder
+    if is_test_file or is_subtest_file:
+      if is_test_file:
+        filename = is_test_file.group(1) + '.rb'
+      else:
+        filename = filedir.split('/')[-1] + '.rb'
+        is_test_file = is_subtest_file
+
       filepath = self.recursive_find(filedir, filename, ['app', 'lib'])
-      method_name = self.method_name_from_text(True, test_method=True)
+      method_name = self.method_name_from_cursor_location_in_code(True, test_method=True)
 
     else:             # is code file, add test suffix and get test file
       filename = filename.replace('.rb', '') + '_test.rb'
       filepath = self.recursive_find(filedir, filename, ['test'])
-      method_name = self.method_name_from_text(True, test_method=False)
+      method_name = self.method_name_from_cursor_location_in_code(True, test_method=False)
 
     return is_test_file, filepath, method_name
 
@@ -53,10 +61,12 @@ class FindRailsFiles():
       \/(test/unit|
          test/functional|
          test/integration|
-         app/models|
          app/concerns|
          app/controllers|
+         app/decorators|
          app/helpers|
+         app/mailers|
+         app/models|
          app/services|
          lib)(.*?)$
     """, re.VERBOSE)
@@ -94,7 +104,7 @@ class FindRailsFiles():
     return flist
 
   # TODO: make this pass in a prefix instead of test_method toggle
-  def method_name_from_text(self, reverse_lookup = True, test_method = False):
+  def method_name_from_cursor_location_in_code(self, reverse_lookup = True, test_method = False):
     method_name = None
     view = self.view
     cursor_location = view.sel()[0].a
@@ -128,14 +138,23 @@ class RailsTestRunner:
     if os.path.splitext(filepath)[1] != '.rb':
       return
 
-    is_test_file, test_filepath, method_name = self.partner_filepath(filepath)
+    is_test_file, partner_filepath, method_name = self.partner_filepath(filepath)
     if is_test_file:
-      test_filepath = filepath
+      # make adjustments to the current test file path for tests in self-named subfolder
+      filedir, filename = os.path.split(filepath)
+      is_subtest_file = re.match(r"^(.+?)_tests\.rb", filename)
+      if is_subtest_file:
+        # e.g. test/unit/company/roles_tests.rb => test/unit/company_test.rb
+        test_filepath = filedir + '_test.rb'
+      else:
+        # test/unit/company_test.rb, so just use as is
+        test_filepath = filepath
     else:
       if not test_filepath: # couldn't find a matching test file
         return
 
-    self.window.open_file(test_filepath)
+    if filepath != test_filepath and not is_subtest_file:
+      self.window.open_file(test_filepath)
 
     settings = sublime.load_settings('RailsTest.sublime-settings')
     osascript = settings.get("osascript") or "/usr/bin/osascript"
@@ -155,7 +174,12 @@ class RailsTestRunner:
 
     if test_name:
       apple_commands.append(test_name)
+    # add toggle to let applescript at the ONLY=type prefix
+    if is_subtest_file:
+      apple_commands.append('none')
+      apple_commands.append(is_subtest_file.group(1))
 
+    print(apple_commands)
     subprocess.Popen(apple_commands)
 
 
@@ -197,10 +221,10 @@ class RailsTestWithNameCommand(RailsTestRunner, FindRailsFiles, sublime_plugin.W
   def run(self):
     # get test name just before cursor
     self.view = self.window.active_view()
-    test_name = self.method_name_from_text(True, test_method=True)
+    test_name = self.method_name_from_cursor_location_in_code(True, test_method=True)
     if not test_name:
       # otherwise cursor is above first test, so get the first test name after
-      test_name = self.method_name_from_text(False, test_method=True)
+      test_name = self.method_name_from_cursor_location_in_code(False, test_method=True)
     self.run_tests(test_name)
 
 
@@ -247,7 +271,7 @@ class CursorMover(FindRailsFiles):
     line = view.line(line) # full line
 
     # if cursor is not in method, then move cursor to that method
-    current_method_name = self.method_name_from_text()
+    current_method_name = self.method_name_from_cursor_location_in_code()
     if current_method_name != method_name:
       view.sel().clear()
       view.sel().add(sublime.Region(line.b + 1))

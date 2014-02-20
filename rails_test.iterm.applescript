@@ -1,53 +1,62 @@
-global ruby_initialization, project_folder, test_file, test_name
+global ruby_initialization, project_folder, test_file, test_name, subtest_group
 
 on run argv
 	if (count of argv) is 0 then
 		--DEBUGGING USE IN APPLESCRIPT EDITOR
 		set ruby_initialization to "19"
 		set project_folder to "/Users/btsai/git/workcloud/workcloud"
-		set test_file to "test/unit/relationship_test.rb"
-		set test_name to "test_initial_setup"
+		set test_file to "test/unit/company_test.rb"
+		set test_name to "test_display_name"
+		set subtest_group to "roles"
 	else
-		--SHOULD HAVE 3 + 1 OPTIONAL ARGUMENTS PASSED OVER BY SUBLIME SCRIPT
+		--SHOULD HAVE 3 + 2 OPTIONAL ARGUMENTS PASSED OVER BY SUBLIME SCRIPT
 		set ruby_initialization to item 1 of argv
 		set project_folder to item 2 of argv
 		set test_file to item 3 of argv
 		set test_name to null
 		if (count of argv) is 4 then
 			set test_name to item 4 of argv
+		else if (count of argv) is 5 then
+			set test_name to item 4 of argv
+			set subtest_group to item 5 of argv
 		end if
 	end if
-
+	
 	tell application "iTerm"
 		set session_name to the last word in test_file
 		if test_name is not null then
 			set session_name to session_name & "-" & test_name
 		end if
-
+		
 		set test_session to my existing_session_named(session_name)
 		if test_session is null then
 			set test_session to my new_session_named(session_name, ruby_initialization, project_folder)
 		end if
-
+		
 		select test_session
 		tell test_session
 			activate
-
+			
 			if my is_in_repeat_mode(test_session) then
 				set test_command to "y"
 			else
-				set test_command to "ruby " & test_file & ""
-				if test_name is not null then
+				if subtest_group is not null then
+					set test_command to "ONLY=" & subtest_group & " "
+				else
+					set test_command to ""
+				end if
+				set test_command to test_command & "ruby " & test_file & ""
+				if test_name is not null and test_name is not "none" then
 					set test_command to test_command & " -n " & test_name
 				end if
 				set test_command to test_command & " -o"
 			end if
-
+			
 			write text test_command
 		end tell
-
+		
 	end tell
-
+	
 end run
 
 on is_in_repeat_mode(_session)
