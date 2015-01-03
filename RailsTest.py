@@ -83,7 +83,7 @@ class FindRailsFiles():
 
   # will ignore these if found inside above valid_dirs
   def is_invalid_dir(self, dirname):
-    return re.match(r".*(tmp|script|bundle|\.git|db|config)", dirname)
+    return re.match(r".*(tmp|script|views|fixtures|helpers|assets|bundle|\.git|db|config)", dirname)
 
   # from http://cpiekarski.com/2011/09/23/python-recursive-glob/
   def rglob(self, base, pattern):
