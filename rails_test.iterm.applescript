@@ -22,22 +22,22 @@ on run argv
 			set subtest_group to item 5 of argv
 		end if
 	end if
-	
+
 	tell application "iTerm"
 		set session_name to the last word in test_file
 		if test_name is not null then
 			set session_name to session_name & "-" & test_name
 		end if
-		
+
 		set test_session to my existing_session_named(session_name)
 		if test_session is null then
 			set test_session to my new_session_named(session_name, ruby_initialization, project_folder)
 		end if
-		
+
 		select test_session
 		tell test_session
 			activate
-			
+
 			if my is_in_repeat_mode(test_session) then
 				set test_command to "y"
 			else
@@ -52,17 +52,17 @@ on run argv
 				end if
 				set test_command to test_command & " -o"
 			end if
-			
+
 			write text test_command
 		end tell
-		
+
 	end tell
-	
+
 end run
 
 on is_in_repeat_mode(_session)
 	set last_line to my last_line_in_session(text of _session)
-	if last_line is "Do you want to run this suite again [y/n]?" then
+	if last_line is "Do you want to run this suite again [y/n/q]?" then
 		return true
 	else
 		return false
