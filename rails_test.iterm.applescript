@@ -62,7 +62,7 @@ end run
 
 on is_in_repeat_mode(_session)
 	set last_line to my last_line_in_session(text of _session)
-	if last_line is "Do you want to run this suite again [y/n/q]?" then
+	if last_line is "Do you want to run this suite again [y/n]?" then
 		return true
 	else
 		return false
